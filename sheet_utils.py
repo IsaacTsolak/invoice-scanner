@@ -40,7 +40,7 @@ def load_products(worksheet):
             "front": to_number(row[2]),
             "back": back,
             "total": to_number(row[4]),
-            "par": to_number(row[5]),
+            "par": to_number(row[5])
         })
 
     return products
@@ -54,3 +54,14 @@ def get_or_create_tab(sheet, title, headers):
         tab.append_row(headers)
         print(f"Created {title} tab")
         return tab
+
+def read_invoice(path):
+    items = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line == "":
+                continue
+            name, qty = line.split(",")
+            items.append({"name": name.strip(), "qty": float(qty)})
+    return items

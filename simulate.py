@@ -1,7 +1,7 @@
 import math
 import random
 from datetime import date, timedelta
-from sheet_utils import connect, load_products, get_or_create_tab
+from sheet_utils import connect, load_products, get_or_create_tab, read_invoice
 
 random.seed(42)
 DAYS = 2
@@ -48,21 +48,8 @@ def save_counts(day):
         count_rows.append([day.isoformat(), p["name"], round(p["front"], 2), round(p["back"], 2), total])
 
 
-start = date.today() - timedelta(days=DAYS)
-save_counts(start)
-
-for d in range(1, DAYS + 1):
-    day = start + timedelta(days=d)
-
-    # Morning: delivery tops up anything below par
-    for p in products:
-        total = p["front"] + p["back"]
-        if total < p["par"]:
-            qty = math.ceil(p["par"] - total)
-            p["back"] += qty
-            delivery_rows.append([day.isoformat(), f"SIM-{d}", p["name"], qty, "added"])
-
-    # Service: random sales, poured from front first, then back
+def run_service():
+    sold = 0
     for p in products:
         total = p["front"] + p["back"]
         used = round(random.uniform(0, p["par"] * 0.3) * 4) / 4
@@ -70,9 +57,42 @@ for d in range(1, DAYS + 1):
         from_front = min(used, p["front"])
         p["front"] -= from_front
         p["back"] -= used - from_front
+        sold += used
+    return sold
+
+
+start = date.today() - timedelta(days=DAYS)
+invoice_items = read_invoice("sample_invoice.txt")
+lookup = {p["name"].lower(): p for p in products}
+
+# Warm-up night: not logged, just gets stock to a realistic level
+run_service()
+save_counts(start)
+print(f"{start}: starting count saved")
+
+for d in range(1, DAYS + 1):
+    day = start + timedelta(days=d)
+
+      # Morning: deliver what's on the invoice
+    lines = 0
+    bottles_in = 0
+    for item in invoice_items:
+        p = lookup.get(item["name"].lower())
+        if p:
+            p["back"] += item["qty"]
+            delivery_rows.append([day.isoformat(), f"SIM-{d}", p["name"], item["qty"], "added"])
+            lines += 1
+            bottles_in += item["qty"]
+        else:
+            delivery_rows.append([day.isoformat(), f"SIM-{d}", item["name"], item["qty"], "needs review"])
+
+    # Service: random sales
+    sold = run_service()
 
     # Night: count
     save_counts(day)
+
+    print(f"{day}: invoice SIM-{d} ({lines} lines, {bottles_in} bottles in), sold {sold:.2f} bottles")
 
 
 # ---------- Write it all to the sheet ----------
