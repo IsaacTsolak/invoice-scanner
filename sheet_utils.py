@@ -40,6 +40,7 @@ def load_products(worksheet):
             "front": to_number(row[2]),
             "back": back,
             "total": to_number(row[4]),
+            "par": to_number(row[5]),
         })
 
     return products
