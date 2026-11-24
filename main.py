@@ -1,5 +1,5 @@
 import gspread
-
+from datetime import date
 
 # ---------- Helper functions ----------
 
@@ -99,18 +99,42 @@ print(f"\nUnmatched (needs review): {len(unmatched)}")
 for item in unmatched:
     print(f"  {item['name']} x{item['qty']}")
 
+# ---------- Deliveries log ----------
+
+try:
+    log = sheet.worksheet("Deliveries Log")
+except gspread.WorksheetNotFound:
+    log = sheet.add_worksheet(title="Deliveries Log", rows=1000, cols=5)
+    log.append_row(["Date", "Invoice #", "Product", "Qty", "Status"])
+    print("Created Deliveries Log tab")
+
+invoice_id = input("\nInvoice number: ").strip()
+
+if invoice_id in log.col_values(2):
+    print(f"Invoice {invoice_id} was already added. Stopping so nothing gets counted twice.")
+    exit()
+
 # ---------- Apply updates ----------
 
 answer = input("\nApply these updates to the sheet? (y/n): ")
 
 if answer.lower() == "y":
+    today = date.today().isoformat()
+
     updates = []
+    log_rows = []
+
     for m in matched:
         p = m["product"]
         new_back = p["back"] + m["item"]["qty"]
         updates.append({"range": f"D{p['row']}", "values": [[new_back]]})
+        log_rows.append([today, invoice_id, p["name"], m["item"]["qty"], "added"])
+
+    for item in unmatched:
+        log_rows.append([today, invoice_id, item["name"], item["qty"], "needs review"])
 
     worksheet.batch_update(updates)
-    print(f"Updated {len(updates)} products.")
+    log.append_rows(log_rows)
+    print(f"Updated {len(updates)} products and logged {len(log_rows)} lines.")
 else:
     print("No changes made.")
