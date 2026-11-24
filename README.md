@@ -1,8 +1,8 @@
-# Bar Inventory Scanner
+# # Bar Inventory Scanner
 
 Automated invoice-to-inventory tracking and usage analytics for a working bar, built on the Google Sheet the bar already uses.
 
-![Dashboard](docs/dashboard.png)
+![Ordering](docs/ordering.png)
 
 ## The problem
 
@@ -17,6 +17,16 @@ Bar inventory is usually a spreadsheet that only shows what's on the shelf *righ
 - **Builds history:** logs every delivery and saves a nightly count snapshot
 
 - **Analytics dashboard:** below par, days of stock left, usage per bottle, cost of product used, and delivery spend, for any time period
+
+## Screenshots
+
+| Usage | Costs |
+
+|---|---|
+
+| ![Usage](docs/Usage.png) | ![Costs](docs/Costs.png) |
+
+![Deliveries](docs/Deliveries.png)
 
 ## How it works
 
