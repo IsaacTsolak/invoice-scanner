@@ -30,6 +30,10 @@ counts["Total"] = pd.to_numeric(counts["Total"], errors="coerce")
 
 stock = products.dropna(subset=["total", "par"])
 
+costs = products[["name", "cost"]].dropna().drop_duplicates("name").rename(columns={"name": "Product"})
+stock_value = (products["total"] * products["cost"]).sum()
+missing_cost = products[products["cost"].isna()]
+
 below = stock[stock["total"] < stock["par"]].copy()
 below["need"] = below["par"] - below["total"]
 below = below.sort_values("need", ascending=False)
@@ -91,10 +95,17 @@ else:
     last_day = usage["Date"].max()
     used_last_day = usage.loc[usage["Date"] == last_day, "Used"].sum()
 
+usage_cost = usage_view.merge(costs, on="Product", how="left")
+usage_cost["Cost used"] = usage_cost["Used"] * usage_cost["cost"]
+
+delivery_cost = added_view.merge(costs, on="Product", how="left")
+delivery_cost["Spend"] = delivery_cost["Qty"] * delivery_cost["cost"]
+
 
 # ---------- Header ----------
 
 st.title("Bar Inventory Dashboard")
+
 if period == "All time":
     st.caption("Showing: all time")
 else:
@@ -113,7 +124,7 @@ c4.metric("Invoice lines to review", len(needs_review))
 
 # ---------- Tabs ----------
 
-tab_order, tab_usage, tab_deliveries = st.tabs(["Ordering", "Usage", "Deliveries"])
+tab_order, tab_usage, tab_costs, tab_deliveries = st.tabs(["Ordering", "Usage", "Costs", "Deliveries"])
 
 with tab_order:
     left, right = st.columns(2)
@@ -152,6 +163,32 @@ with tab_usage:
             usage_view[usage_view["Product"] == choice][["Date", "Start", "Delivered", "Total", "Used"]],
             hide_index=True,
         )
+
+with tab_costs:
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Stock value on hand", f"${stock_value:,.2f}")
+    k2.metric("Cost of product used", f"${usage_cost['Cost used'].sum():,.2f}")
+    k3.metric("Delivery spend", f"${delivery_cost['Spend'].sum():,.2f}")
+
+    if usage_cost.empty:
+        st.info("No usage in this period yet.")
+    else:
+        left, right = st.columns(2)
+        with left:
+            st.subheader("Cost of product used per day")
+            st.bar_chart(usage_cost.groupby("Date")["Cost used"].sum())
+        with right:
+            st.subheader("Top 10 by cost used")
+            st.bar_chart(usage_cost.groupby("Product")["Cost used"].sum().nlargest(10))
+
+    st.subheader("Spend per invoice")
+    if delivery_cost.empty:
+        st.info("No deliveries in this period.")
+    else:
+        st.bar_chart(delivery_cost.groupby("Invoice #")["Spend"].sum())
+
+    if not missing_cost.empty:
+        st.caption(f"{len(missing_cost)} products have no cost in the sheet and aren't included in these totals.")
 
 with tab_deliveries:
     if not needs_review.empty:

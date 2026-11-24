@@ -10,6 +10,12 @@ def to_number(value):
     except ValueError:
         return None
 
+def to_money(value):
+    cleaned = value.strip().replace("$", "").replace(",", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
 
 def connect(sheet_name="test_invoice_tracker"):
     client = gspread.service_account(filename="credentials.json")
@@ -40,7 +46,9 @@ def load_products(worksheet):
             "front": to_number(row[2]),
             "back": back,
             "total": to_number(row[4]),
-            "par": to_number(row[5])
+            "par": to_number(row[5]),
+            "cost": to_money(row[8]),
+            "pour_cost": to_money(row[9]),
         })
 
     return products
