@@ -1,63 +1,12 @@
-import gspread
 from datetime import date
-
-# ---------- Helper functions ----------
-
-def to_number(value):
-    if value.strip() == "-":
-        return 0.0
-    cleaned = value.strip().replace(",", ".")
-    try:
-        return float(cleaned)
-    except ValueError:
-        return None
+from sheet_utils import connect, load_products, get_or_create_tab
 
 
-# ---------- Connect to the sheet ----------
+# ---------- Connect and load products ----------
 
-client = gspread.service_account(filename="credentials.json")
-sheet = client.open("test_invoice_tracker")
-worksheet = sheet.sheet1
-rows = worksheet.get_all_values()
-
-
-# ---------- Build the product list ----------
-
-products = []
-
-for i, row in enumerate(rows):
-    sheet_row = i + 1
-    brand = row[0].strip()
-    variant = row[1].strip()
-    back_stock = row[3].strip()
-
-    name = (brand + " " + variant).strip()
-    back = to_number(back_stock)
-
-    if sheet_row < 6:
-        continue
-    if name == "":
-        continue
-    if back is None:
-        if back_stock not in ("", "STOCK LEVEL"):
-            print(f"Warning: row {sheet_row} ({name}) has unreadable back stock: '{back_stock}'")
-        continue
-
-    products.append({"name": name, "row": sheet_row, "back": back})
-
+sheet, worksheet = connect()
+products = load_products(worksheet)
 print(f"Loaded {len(products)} products")
-
-
-# ---------- Update function ----------
-
-def add_to_back_stock(product_name, qty):
-    for p in products:
-        if p["name"] == product_name:
-            new_back = p["back"] + qty
-            worksheet.update_cell(p["row"], 4, new_back)
-            print(f"{product_name}: back stock {p['back']} -> {new_back}")
-            return
-    print(f"Not found: {product_name}")
 
 
 # ---------- Read the invoice ----------
@@ -73,10 +22,9 @@ with open("sample_invoice.txt") as f:
         invoice_items.append({"name": name.strip(), "qty": float(qty)})
 
 print(f"Loaded {len(invoice_items)} invoice items")
-for item in invoice_items:
-    print(item)
 
-    # ---------- Match invoice to sheet ----------
+
+# ---------- Match invoice to sheet ----------
 
 product_lookup = {p["name"].lower(): p for p in products}
 
@@ -99,20 +47,17 @@ print(f"\nUnmatched (needs review): {len(unmatched)}")
 for item in unmatched:
     print(f"  {item['name']} x{item['qty']}")
 
+
 # ---------- Deliveries log ----------
 
-try:
-    log = sheet.worksheet("Deliveries Log")
-except gspread.WorksheetNotFound:
-    log = sheet.add_worksheet(title="Deliveries Log", rows=1000, cols=5)
-    log.append_row(["Date", "Invoice #", "Product", "Qty", "Status"])
-    print("Created Deliveries Log tab")
+log = get_or_create_tab(sheet, "Deliveries Log", ["Date", "Invoice #", "Product", "Qty", "Status"])
 
 invoice_id = input("\nInvoice number: ").strip()
 
 if invoice_id in log.col_values(2):
     print(f"Invoice {invoice_id} was already added. Stopping so nothing gets counted twice.")
     exit()
+
 
 # ---------- Apply updates ----------
 
